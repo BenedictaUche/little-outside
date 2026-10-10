@@ -1,343 +1,307 @@
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import Button from "@/components/Button";
+import MissionCard from "@/components/MissionCard";
+import ReflectionForm from "@/components/ReflectionForm";
+import TopBar from "@/components/TopBar";
+import WordCard from "@/components/WordCard";
+import StickerPanel from "@/components/StickerPanel";
+import { generateMission, type Mission } from "@/lib/ai/missions";
+import { requestVocabulary } from "@/lib/ai";
+import type { VocabularySuggestion } from "@/lib/data/vocabulary";
+import { saveSession, saveWord } from "@/lib/storage";
+import type { SessionPreferences } from "@/lib/types";
 
-type SessionSetup = {
-    activities: string[];
-    time: string;
-    budget: string;
-    social: string;
+const HANDOFF_KEY = "little-outside-handoff";
+
+type Stage = "mission" | "reflect" | "word";
+
+const NO_HANDOFF = Symbol("no-handoff");
+
+/**
+ * What the home page hands over: the chosen preferences plus a seed
+ * generated at click time (event handlers may be random; render must not).
+ */
+type HandoffData = {
+  preferences: SessionPreferences;
+  seed: number;
 };
 
-type WordCoach = {
-    word: string;
-    partOfSpeech: string;
-    definition: string;
-    whyItFits: string;
-    example: string;
-    challenge: string;
-};
+type Handoff = HandoffData | typeof NO_HANDOFF | null;
 
-const missions = [
-    {
-        title: "The Ordinary, More Carefully",
-        category: "A LITTLE OBSERVATION",
-        intro: "There's more to your everyday world than meets the eye.",
-        instructions: [
-            "Take a walk somewhere familiar.",
-            "Find something you've probably seen many times but never really examined.",
-            "Notice its shape, color, texture, or the way people interact with it.",
-            "Keep your phone away for a little while. Let yourself be curious.",
-        ],
-        prompt: "What's one detail you would normally have overlooked?",
-        word: "inconspicuous",
-        definition: "Not easily noticed or attracting attention.",
-        emoji: "🌼",
-        color: "lavender",
-    },
-    {
-        title: "A Small World of Details",
-        category: "YOUR LITTLE FIELD TRIP",
-        intro: "Today, ordinary things get to be interesting.",
-        instructions: [
-            "Head somewhere you can walk safely and comfortably.",
-            "Look for something weathered, unusual, or unexpectedly beautiful.",
-            "Pay attention to the details rather than rushing to name what you see.",
-            "When you're ready, remember what caught your eye.",
-        ],
-        prompt: "What caught your attention, and why?",
-        word: "weathered",
-        definition: "Worn or changed by long exposure to weather or time.",
-        emoji: "🍂",
-        color: "peach",
-    },
-];
+let cachedRaw: string | null | undefined;
+let cachedParsed: HandoffData | null;
+
+function parseHandoff(raw: string): HandoffData | null {
+  try {
+    const parsed = JSON.parse(raw) as
+      | (SessionPreferences & { seed?: number })
+      | { preferences: SessionPreferences; seed?: number };
+    const preferences = "preferences" in parsed ? parsed.preferences : parsed;
+    if (!Array.isArray(preferences.activities) || preferences.activities.length === 0) {
+      return null;
+    }
+    const seed =
+      typeof parsed.seed === "number" && Number.isFinite(parsed.seed)
+        ? parsed.seed
+        : 0;
+    return { preferences, seed };
+  } catch {
+    return null;
+  }
+}
+
+function readHandoffSnapshot(): Handoff {
+  let raw: string | null = null;
+  try {
+    raw = sessionStorage.getItem(HANDOFF_KEY);
+  } catch {
+    raw = null;
+  }
+
+  if (raw !== cachedRaw) {
+    cachedRaw = raw;
+    cachedParsed = raw ? parseHandoff(raw) : null;
+  }
+
+  return cachedParsed ?? NO_HANDOFF;
+}
+
+function getServerHandoffSnapshot(): Handoff {
+  return null;
+}
+
+function subscribeHandoff(): () => void {
+  return () => {};
+}
 
 export default function MissionPage() {
-    const [setup, setSetup] = useState<SessionSetup | null>(null);
-    const [started, setStarted] = useState(false);
-    const [reflection, setReflection] = useState("");
-    const [stage, setStage] = useState<"mission" | "reflect" | "word">("mission");
+  const handoff = useSyncExternalStore(
+    subscribeHandoff,
+    readHandoffSnapshot,
+    getServerHandoffSnapshot,
+  );
+  const preferences = handoff && handoff !== NO_HANDOFF ? handoff.preferences : null;
+  const seed = handoff && handoff !== NO_HANDOFF ? handoff.seed : 0;
 
-    const [wordCoach, setWordCoach] = useState<WordCoach | null>(null);
-    const [loadingWord, setLoadingWord] = useState(false);
-    const [wordError, setWordError] = useState("");
-    const [rewrite, setRewrite] = useState("");
-    const [showFeedback, setShowFeedback] = useState(false);
+  const [stage, setStage] = useState<Stage>("mission");
+  const [reflection, setReflection] = useState("");
+  const [rewrite, setRewrite] = useState("");
+  const [suggestion, setSuggestion] = useState<VocabularySuggestion | null>(
+    null,
+  );
+  const [loadingWord, setLoadingWord] = useState(false);
+  const [wordError, setWordError] = useState("");
+  const [kept, setKept] = useState(false);
 
-    useEffect(() => {
-        const saved = sessionStorage.getItem("little-outside-session");
+  // Mission pick is derived purely from the handoff data — no randomness
+  // in render, so the prerender and the hydration pass agree.
+  const mission = useMemo<Mission | null>(
+    () => (preferences ? generateMission(preferences, seed) : null),
+    [preferences, seed],
+  );
 
-        if (saved) {
-            try {
-                setSetup(JSON.parse(saved) as SessionSetup);
-            } catch {
-                setSetup(null);
-            }
-        }
-    }, []);
+  const missionTitle = mission?.title ?? "your mission";
+  const missionIntensity = mission?.intensity ?? "a little walk";
 
-    const mission = missions[
-        setup?.activities.includes("vocabulary") ? 0 : 1
-    ];
+  async function findMyWords() {
+    if (!reflection.trim()) return;
 
-    if (!setup) {
-        return (
-            <main className="app-shell mission-page">
-                <header className="topbar">
-                    <Link className="brand" href="/">
-                        <span className="brand-mark">✿</span>
-                        <span>little outside</span>
-                    </Link>
-                </header>
-                <section className="mission-card">
-                    <h1>Let's plan a little adventure.</h1>
-                    <p>Choose what you're in the mood for first.</p>
-                    <Link className="start-button back-link" href="/">
-                        Back to home ↗
-                    </Link>
-                </section>
-            </main>
-        );
+    setLoadingWord(true);
+    setWordError("");
+    setSuggestion(null);
+
+    try {
+      const suggestion = await requestVocabulary(reflection);
+      setSuggestion(suggestion);
+      setStage("word");
+    } catch (error) {
+      setWordError(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong. Please try again.",
+      );
+    } finally {
+      setLoadingWord(false);
     }
+  }
 
-    async function findMyWords() {
-        setLoadingWord(true);
-        setWordError("");
-        setWordCoach(null);
-        setShowFeedback(false);
+  /** Persist session + word, then move on. */
+  async function keepThisWord() {
+    if (!preferences || !mission || !suggestion) return;
+    setKept(true);
 
-        try {
-            const response = await fetch("/api/vocabulary", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ reflection }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || "Couldn't find your words.");
-            }
-
-            setWordCoach(data.wordCoach);
-            setStage("word");
-        } catch (error) {
-            setWordError(
-                error instanceof Error
-                    ? error.message
-                    : "Something went wrong. Please try again."
-            );
-        } finally {
-            setLoadingWord(false);
-        }
+    try {
+      const session = await saveSession({
+        preferences,
+        missionTitle,
+        missionIntensity,
+        reflection: reflection.trim(),
+        rewrite: rewrite.trim() || undefined,
+        word: suggestion.word,
+        wordSource: suggestion.source,
+      });
+      await saveWord({
+        suggestion,
+        reflection: reflection.trim(),
+      });
+      void session;
+    } catch (error) {
+      console.warn("Could not save locally:", error);
     }
+  }
 
+  const isOfflineSafe = suggestion?.source === "local";
+
+  if (handoff === null) {
     return (
-        <main className="app-shell mission-page">
-            <header className="topbar">
-                <Link className="brand" href="/">
-                    <span className="brand-mark">✿</span>
-                    <span>little outside</span>
-                </Link>
-                <Link className="journal-link" href="/">
-                    ← Back home
-                </Link>
-            </header>
-
-            <section className="mission-layout">
-                <div className={`mission-card ${mission.color}`}>
-                    <div className="mission-topline">
-                        {/* <span className="eyebrow">{mission.category}</span> */}
-                        <span className="mission-emoji">{mission.emoji}</span>
-                    </div>
-
-                    {stage === "mission" && (
-                        <>
-                            <h1>{mission.title}</h1>
-                            <p className="mission-intro">{mission.intro}</p>
-
-                            <div className="mission-meta">
-                                <span>◷ {setup.time}</span>
-                                <span>♡ {setup.budget}</span>
-                                <span>✿ {setup.social}</span>
-                            </div>
-
-                            <div className="mission-instructions">
-                                <h2>Your little mission</h2>
-                                <ol>
-                                    {mission.instructions.map((instruction) => (
-                                        <li key={instruction}>{instruction}</li>
-                                    ))}
-                                </ol>
-                            </div>
-
-                            <div className="mission-reminder">
-                                <span>☀</span>
-                                <p>
-                                    No need to take pictures or prove anything. Just go
-                                    somewhere safe and see what you notice.
-                                </p>
-                            </div>
-
-                            <button
-                                className="start-button mission-action"
-                                onClick={() => setStarted(true)}
-                            >
-                                {started ? "You're ready to go" : "I'm ready"} <span>↗</span>
-                            </button>
-
-                            {started && (
-                                <div className="mission-go">
-                                    <span>🌷</span>
-                                    <div>
-                                        <strong>Off you go!</strong>
-                                        <p>
-                                            Put your phone away. Come back when you're ready to
-                                            tell me about it.
-                                        </p>
-                                        <button
-                                            className="text-button"
-                                            onClick={() => setStage("reflect")}
-                                        >
-                                            I'm back from my walk →
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    {stage === "reflect" && (
-                        <>
-                            <h1>You're back! ♡</h1>
-                            <p className="mission-intro">
-                                Take a breath. What did you notice out there?
-                            </p>
-
-                            <label className="reflection-label" htmlFor="reflection">
-                                Tell me about something you saw, heard, or experienced.
-                            </label>
-                            <textarea
-                                id="reflection"
-                                className="reflection-input"
-                                value={reflection}
-                                onChange={(event) => setReflection(event.target.value)}
-                                placeholder="I noticed..."
-                                rows={6}
-                            />
-
-                            <button
-                                className="start-button mission-action"
-                                disabled={!reflection.trim() || loadingWord}
-                                onClick={findMyWords}
-                            >
-                                {loadingWord ? "Finding your words..." : "Find my words"}
-                                {!loadingWord && <span> ↗</span>}
-                            </button>
-
-                            {wordError && (
-                                <p role="alert" className="mission-error">
-                                    {wordError}
-                                </p>
-                            )}
-                        </>
-                    )}
-
-                    {stage === "word" && (
-                        <>
-                            <h1>Your words, a little richer.</h1>
-                            <p className="mission-intro">
-                                Here's a word to keep in your pocket for next time.
-                            </p>
-
-                            <div className="reflection-quote">
-                                <span className="eyebrow">WHAT YOU NOTICED</span>
-                                <p>{reflection}</p>
-                            </div>
-
-                            {wordCoach && (
-                                <>
-                                    <div className="word-card">
-                                        <span className="eyebrow">A WORD TO KEEP</span>
-                                        <h2>{wordCoach.word}</h2>
-                                        <p className="word-part">{wordCoach.partOfSpeech}</p>
-                                        <p>{wordCoach.definition}</p>
-
-                                        <div className="word-explanation">
-                                            <strong>Why this word?</strong>
-                                            <p>{wordCoach.whyItFits}</p>
-                                        </div>
-
-                                        <div className="word-example">
-                                            <span className="eyebrow">IN CONTEXT</span>
-                                            <p>{wordCoach.example}</p>
-                                        </div>
-
-                                        <span className="word-decoration">✳</span>
-                                    </div>
-
-                                    <div className="word-challenge">
-                                        <label className="reflection-label" htmlFor="rewrite">
-                                            {wordCoach.challenge}
-                                        </label>
-
-                                        <textarea
-                                            id="rewrite"
-                                            className="reflection-input"
-                                            value={rewrite}
-                                            onChange={(event) => {
-                                                setRewrite(event.target.value);
-                                                setShowFeedback(false);
-                                            }}
-                                            placeholder="Try putting it in your own words..."
-                                            rows={4}
-                                        />
-
-                                        <button
-                                            className="start-button mission-action"
-                                            disabled={!rewrite.trim()}
-                                            onClick={() => setShowFeedback(true)}
-                                        >
-                                            Keep this word ♡
-                                        </button>
-
-                                        {showFeedback && (
-                                            <p className="word-feedback" role="status">
-                                                Lovely. You've practiced using "{wordCoach.word}" in your own
-                                                words. Keep noticing, keep describing. 🌷
-                                            </p>
-                                        )}
-                                    </div>
-                                </>
-                            )}
-
-                            <p className="mission-intro">
-                                This is a sample word for now. In the next milestone, we'll
-                                have the AI choose words that actually fit your description.
-                            </p>
-
-                            <Link className="start-button back-link" href="/">
-                                Plan another adventure ↗
-                            </Link>
-                        </>
-                    )}
-                </div>
-
-                <aside className="mission-aside">
-                    <span className="aside-flower">✿</span>
-                    <h2>A little reminder</h2>
-                    <p>
-                        You don't have to make every moment productive. Sometimes noticing
-                        one small thing is enough.
-                    </p>
-                    <div className="aside-sticker">take your time ♡</div>
-                </aside>
-            </section>
-        </main>
+      <main className="min-h-screen">
+        <TopBar />
+      </main>
     );
+  }
+
+  if (!preferences || !mission) {
+    return (
+      <main className="mx-auto w-[min(760px,calc(100%-40px))]">
+        <TopBar />
+        <section className="md:py-12 py-8">
+          <h1 className="font-display text-[clamp(35px,5vw,53px)] font-medium leading-[1.12] tracking-[-2px] text-plum">
+            Let&apos;s plan a little adventure.
+          </h1>
+          <p className="mt-3 text-sm leading-[1.8] text-muted">
+            Choose what you&apos;re in the mood for first.
+          </p>
+          <Link
+            href="/"
+            className="mt-6 inline-flex h-[49px] w-fit items-center justify-center gap-3.5 rounded-[100px_100px_100px_35px] border border-plum bg-plum px-6 text-xs font-bold text-cream no-underline transition hover:-translate-y-0.5 hover:bg-plum-light"
+          >
+            Back to home ↗
+          </Link>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="mx-auto w-[min(100%-32px,760px)]">
+      <TopBar trailing={{ href: "/", label: "← Back home" }} />
+
+      <section className="grid grid-cols-1 gap-6 py-8 md:grid-cols-[minmax(0,1fr)_230px] md:items-start md:gap-7 md:py-12">
+        <MissionCard
+          mission={mission}
+          time={preferences.time}
+          budget={preferences.budget}
+          social={preferences.social}
+        >
+          {stage === "mission" && (
+            <>
+              <Button block onClick={() => setStage("reflect")}>
+                I&apos;m ready <span aria-hidden="true">↗</span>
+              </Button>
+
+              <div className="mt-5 flex gap-4 rounded-[17px] border border-[#d7c9e5] bg-paper/70 p-4">
+                <span aria-hidden="true" className="shrink-0 text-[27px]">
+                  🌷
+                </span>
+                <div>
+                  <strong className="font-display text-lg">
+                    Off you go!
+                  </strong>
+                  <p className="m-0 mt-1 text-xs leading-[1.8] text-[#77667b]">
+                    Put your phone away. Come back when you&apos;re ready to
+                    tell me about it.
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {stage === "reflect" && (
+            <>
+              <ReflectionForm
+                id="reflection"
+                label="Tell me about something you saw, heard, or experienced."
+                placeholder="I noticed..."
+                value={reflection}
+                onChange={setReflection}
+              />
+              <Button
+                block
+                className="mt-5"
+                disabled={!reflection.trim() || loadingWord}
+                onClick={findMyWords}
+              >
+                {loadingWord ? "Finding your words..." : "Find my words"}
+                {!loadingWord && <span aria-hidden="true">↗</span>}
+              </Button>
+              {wordError && (
+                <p role="alert" className="mt-3 text-[13px] leading-[1.6] text-[#a13c51]">
+                  {wordError}
+                </p>
+              )}
+            </>
+          )}
+
+          {stage === "word" && suggestion && (
+            <>
+              <blockquote className="my-6 rounded-[0_14px_14px_0] border-l-[3px] border-[#c2a9e8] bg-white/60 py-4 pl-5 pr-4">
+                <span className="block text-[10px] font-extrabold uppercase leading-[1.6] tracking-[2px] text-[#9c789e]">
+                  What you noticed
+                </span>
+                <p className="m-0 break-words font-display text-base leading-[1.8] text-plum">
+                  {reflection}
+                </p>
+              </blockquote>
+
+              <WordCard word={suggestion} />
+
+              <div className="mt-5">
+                <ReflectionForm
+                  id="rewrite"
+                  label={suggestion.challenge}
+                  placeholder="Try putting it in your own words..."
+                  value={rewrite}
+                  onChange={setRewrite}
+                  rows={4}
+                  hideHint
+                />
+                <Button block className="mt-5" onClick={keepThisWord} disabled={!rewrite.trim() || kept}>
+                  {kept ? "Kept in your journal ♡" : "Keep this word ♡"}
+                </Button>
+                {kept && (
+                  <p
+                    role="status"
+                    className="mt-4 rounded-[14px] border border-[#e1d4eb] bg-[#f3e7fa] p-3.5 text-[13px] leading-[1.8] text-[#60446d]"
+                  >
+                    Lovely. You&apos;ve practiced using &quot;
+                    {suggestion.word}&quot; in your own words. Keep noticing,
+                    keep describing. 🌷
+                  </p>
+                )}
+              </div>
+
+              {isOfflineSafe && (
+                <p className="mt-4 text-[11px] leading-[1.7] text-[#a08fa3]">
+                  This word came from the app&apos;s local collection, so it
+                  works even without internet.
+                </p>
+              )}
+
+              <Link
+                href="/journal"
+                className="mt-6 inline-flex h-[49px] w-full items-center justify-center gap-3.5 rounded-[100px_100px_100px_35px] border border-plum bg-plum px-6 text-xs font-bold text-cream no-underline transition hover:-translate-y-0.5 hover:bg-plum-light sm:w-fit"
+              >
+                See your journal ↗
+              </Link>
+            </>
+          )}
+        </MissionCard>
+
+        <StickerPanel />
+      </section>
+    </main>
+  );
 }

@@ -1,15 +1,38 @@
-
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import ActivityCard from "@/components/ActivityCard";
+import GardenScene from "@/components/GardenScene";
+import PreferenceRow from "@/components/PreferenceRow";
+import TopBar from "@/components/TopBar";
+import type {
+  ActivityId,
+  BudgetChoice,
+  SessionPreferences,
+  SocialChoice,
+  TimeChoice,
+} from "@/lib/types";
 
-const activities = [
+/**
+ * The home flow is client-side because preferences are chosen here and
+ * handed to the mission page through sessionStorage (a tiny handoff, not
+ * storage: anything durable is written to IndexedDB later in the flow).
+ */
+const ACTIVITIES: {
+  id: ActivityId;
+  emoji: string;
+  title: string;
+  description: string;
+  color: "lavender" | "peach" | "rose" | "butter";
+}[] = [
   {
     id: "notice",
     emoji: "🌼",
     title: "Notice things",
     description: "Find little details hiding in plain sight.",
-    color: "lilac",
+    color: "lavender",
   },
   {
     id: "vocabulary",
@@ -23,242 +46,179 @@ const activities = [
     emoji: "🦋",
     title: "Talk to someone",
     description: "Try a tiny, low-pressure interaction.",
-    color: "pink",
+    color: "rose",
   },
   {
-    id: "think",
+    id: "clear-head",
     emoji: "☁️",
     title: "Clear your head",
     description: "Give a thought some room to breathe.",
-    color: "yellow",
+    color: "butter",
   },
 ];
 
-const times = ["15 min", "30 min", "1 hour", "2+ hours"];
-const budgets = ["₦0", "₦1k", "₦5k+"];
+const TIMES: TimeChoice[] = ["15 min", "30 min", "1 hour", "2+ hours"];
+const BUDGETS: BudgetChoice[] = ["₦0", "₦1k", "₦5k+"];
+const SOCIALS: SocialChoice[] = [
+  "Just me",
+  "A little interaction",
+  "I'm feeling social",
+];
 
 export default function Home() {
-  const [selectedActivities, setSelectedActivities] = useState<string[]>([
+  const router = useRouter();
+  const [selectedActivities, setSelectedActivities] = useState<ActivityId[]>([
     "notice",
-    "vocabulary",
   ]);
-  const [time, setTime] = useState("30 min");
-  const [budget, setBudget] = useState("₦0");
-  const [social, setSocial] = useState("Just me");
+  const [time, setTime] = useState<TimeChoice>("30 min");
+  const [budget, setBudget] = useState<BudgetChoice>("₦0");
+  const [social, setSocial] = useState<SocialChoice>("Just me");
 
-  function toggleActivity(id: string) {
+  const toggleActivity = useCallback((id: ActivityId) => {
     setSelectedActivities((current) =>
       current.includes(id)
         ? current.filter((item) => item !== id)
         : [...current, id],
     );
-  }
+  }, []);
 
   function startAdventure() {
     if (selectedActivities.length === 0) return;
 
-    const setup = {
+    const preferences: SessionPreferences = {
       activities: selectedActivities,
       time,
       budget,
       social,
     };
 
-    sessionStorage.setItem("little-outside-session", JSON.stringify(setup));
+    // Seed the mission pick here, in the click handler, so rendering the
+    // mission page later stays pure.
+    const handoff = {
+      preferences,
+      seed: Math.floor(Math.random() * 100_000),
+    };
 
-    window.location.href = "/mission";
+    sessionStorage.setItem(
+      "little-outside-handoff",
+      JSON.stringify(handoff),
+    );
+    router.push("/mission");
   }
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="/" aria-label="Little Outside home">
-          <span className="brand-mark">✿</span>
-          <span>little outside</span>
-        </a>
+    <main className="mx-auto w-[min(1120px,calc(100%-64px))] md:w-[min(100%-40px,760px)] max-[700px]:w-[calc(100%-32px)] max-[380px]:w-[calc(100%-24px)]">
+      <TopBar
+        trailing={{
+          href: "/journal",
+          label: "♡ My journal",
+        }}
+      />
 
-        <a className="journal-link" href="/journal">
-          <span>♡</span> My journal
-        </a>
-      </header>
-
-      <section className="hero">
-        <div className="hero-copy">
-
-
-          <h1>
+      <section className="grid grid-cols-1 items-center gap-7 py-10 md:grid-cols-[minmax(0,1fr)_minmax(250px,0.8fr)] md:gap-7.5 md:py-16">
+        <div className="relative z-10">
+          <h1 className="my-4 max-w-137.5 font-display text-[clamp(43px,10vw,59px)] font-medium leading-[1.05] tracking-[-2.5px] text-plum md:my-4.5 md:text-[clamp(42px,6vw,68px)] md:tracking-[-3px]">
             Life is happening
             <br />
-            <span>out there.</span>
+            <em className="font-normal not-italic text-[#9a78b6]">
+              out there.
+            </em>
           </h1>
-
-          <p>
-            Let's go find something lovely, learn a new word,
-            or simply see the world a little differently.
+          <p className="m-0 max-w-[440px] text-[13px] leading-[1.9] text-muted md:text-sm">
+            Let&apos;s go find something lovely, learn a new word, or simply
+            see the world a little differently.
           </p>
         </div>
-
-        <div className="hero-art" aria-label="A little illustrated garden">
-          <div className="sun-doodle">✳</div>
-          <span className="floating-star star-one">✦</span>
-          <span className="floating-star star-two">✧</span>
-          <span className="floating-star star-three">·</span>
-
-          <div className="garden-scene">
-            <div className="garden-hill hill-back" />
-            <div className="garden-hill hill-front" />
-
-            <div className="flower flower-one">
-              <span>✿</span>
-            </div>
-            <div className="flower flower-two">
-              <span>✿</span>
-            </div>
-            <div className="flower flower-three">
-              <span>✿</span>
-            </div>
-
-            <div className="pumpkin">
-              <span className="pumpkin-stem" />
-              <span className="pumpkin-leaf" />
-              <span className="pumpkin-body">
-                <i />
-                <i />
-                <i />
-              </span>
-            </div>
-
-            <div className="tiny-mushroom">
-              <span />
-              <i />
-            </div>
-          </div>
-
-          <div className="art-caption">your world, a little closer ♡</div>
-        </div>
+        <GardenScene />
       </section>
 
-      <section className="adventure-section">
-        <div className="section-heading">
+      <section className="pb-16">
+        <div className="mb-5 flex flex-col items-start justify-between gap-2 md:flex-row md:items-end md:gap-5">
           <div>
-            <h2>What do you feel like doing?</h2>
-            <p>Pick a few. You can change your mind.</p>
+            <h2 className="mt-2 font-display text-[27px] font-medium tracking-[-1px] text-plum md:text-[29px]">
+              What do you feel like doing?
+            </h2>
+            <p className="m-0 max-w-[300px] text-xs leading-[1.8] text-muted">
+              Pick a few. You can change your mind.
+            </p>
           </div>
-          <span className="heading-doodle">✳</span>
+          <span aria-hidden="true" className="text-base text-[#c7a4d2]">
+            ✳
+          </span>
         </div>
 
-        <div className="activity-grid">
-          {activities.map((activity) => {
-            const selected = selectedActivities.includes(activity.id);
-
-            return (
-              <button
-                key={activity.id}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => toggleActivity(activity.id)}
-                className={`activity-card ${activity.color} ${
-                  selected ? "selected" : ""
-                }`}
-              >
-                <span className="activity-emoji">{activity.emoji}</span>
-                <span className="activity-check">
-                  {selected ? "✓" : "+"}
-                </span>
-                <span className="activity-title">{activity.title}</span>
-                <span className="activity-description">
-                  {activity.description}
-                </span>
-              </button>
-            );
-          })}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 lg:grid-cols-4">
+          {ACTIVITIES.map((activity) => (
+            <ActivityCard
+              key={activity.id}
+              id={activity.id}
+              emoji={activity.emoji}
+              title={activity.title}
+              description={activity.description}
+              color={activity.color}
+              selected={selectedActivities.includes(activity.id)}
+              onToggle={toggleActivity}
+            />
+          ))}
         </div>
 
-        <div className="preferences-card">
-          <div className="preference-block">
-            <span className="preference-title">
-              <span>◷</span> How much time have you got?
-            </span>
-            <div className="choice-row">
-              {times.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setTime(item)}
-                  aria-pressed={time === item}
-                  className={`choice-pill ${time === item ? "active" : ""}`}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </div>
+        <section className="mt-7 grid gap-6 rounded-[23px_23px_15px_23px] border border-[#eadce8] bg-paper p-5 shadow-soft md:grid-cols-3 md:p-8">
+          <PreferenceRow
+            icon="◷"
+            title="How much time have you got?"
+            options={TIMES}
+            value={time}
+            onChange={(value) => setTime(value as TimeChoice)}
+          />
+          <PreferenceRow
+            icon="♡"
+            title="What's the budget?"
+            options={BUDGETS}
+            value={budget}
+            onChange={(value) => setBudget(value as BudgetChoice)}
+          />
+          <PreferenceRow
+            icon="☀"
+            title="People today?"
+            options={SOCIALS}
+            value={social}
+            onChange={(value) => setSocial(value as SocialChoice)}
+          />
+        </section>
 
-          <div className="preference-block">
-            <span className="preference-title">
-              <span>♡</span> What's the budget?
+        <div className="mt-8 flex flex-col items-stretch gap-4 pb-16 sm:flex-row sm:items-center sm:justify-between sm:pb-[65px]">
+          <div className="flex items-center gap-2.5 text-[11px] text-[#927b93]">
+            <span aria-hidden="true" className="text-lg text-[#c18ca9]">
+              🌷
             </span>
-            <div className="choice-row">
-              {budgets.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setBudget(item)}
-                  aria-pressed={budget === item}
-                  className={`choice-pill ${budget === item ? "active" : ""}`}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="preference-block">
-            <span className="preference-title">
-              <span>☀</span> People today?
-            </span>
-            <div className="choice-row">
-              {["Just me", "A little interaction", "I'm feeling social"].map(
-                (item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setSocial(item)}
-                    aria-pressed={social === item}
-                    className={`choice-pill ${social === item ? "active" : ""}`}
-                  >
-                    {item}
-                  </button>
-                ),
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="start-row">
-          <div className="start-note">
-            <span>🌷</span>
-            <p>
-              Your plans don't have to be grand
+            <p className="m-0 leading-[1.7]">
+              Your plans don&apos;t have to be grand
               <br />
               to make a lovely day.
             </p>
           </div>
 
-          <button
-            type="button"
-            className="start-button"
-            disabled={selectedActivities.length === 0}
-            onClick={startAdventure}
-          >
-            Let's go outside <span>↗</span>
-          </button>
+          <div className="flex flex-col items-center gap-3">
+            <button
+              type="button"
+              className="inline-flex w-full items-center justify-center gap-3.5 rounded-[100px_100px_100px_35px] border border-plum bg-plum px-6 py-[14px] text-xs font-bold text-cream transition hover:-translate-y-0.5 hover:bg-plum-light hover:shadow-[0_7px_18px_#49324f20] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto"
+              disabled={selectedActivities.length === 0}
+              onClick={startAdventure}
+            >
+              Let&apos;s go outside <span aria-hidden="true">↗</span>
+            </button>
+          </div>
         </div>
       </section>
 
-      <footer className="site-footer">
-        <span>Made for the curious, the daydreamers & you.</span>
-        <span>Take the long way home ✿</span>
+      <footer className="flex flex-col gap-1 border-t border-plum/10 py-6 text-[11px] text-muted sm:flex-row sm:justify-between">
+        <span>Made for the curious, the daydreamers &amp; you.</span>
+        <Link
+          href="/journal"
+          className="text-muted no-underline hover:text-plum"
+        >
+          Take the long way home ✿
+        </Link>
       </footer>
     </main>
   );
