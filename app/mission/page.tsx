@@ -13,7 +13,7 @@ import { requestVocabulary } from "@/lib/ai";
 import type { VocabularySuggestion } from "@/lib/data/vocabulary";
 import { saveSession, saveWord, getDraft, saveDraft, clearDraft } from "@/lib/storage";
 import type { SessionDraft } from "@/lib/storage/sessions";
-import {MoveUpRight} from "lucide-react";
+import { MoveUpRight } from "lucide-react";
 
 
 type Stage = "mission" | "reflect" | "word";
