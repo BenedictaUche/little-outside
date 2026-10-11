@@ -37,7 +37,14 @@ function openDb(): Promise<IDBDatabase> {
       resolve(request.result);
     };
     request.onerror = () => {
-      reject(request.error ?? new Error("Could not open IndexedDB."));
+      const error = request.error;
+      if (error && error.name === "VersionError") {
+        const fallbackRequest = indexedDB.open(DB_NAME);
+        fallbackRequest.onsuccess = () => resolve(fallbackRequest.result);
+        fallbackRequest.onerror = () => reject(error);
+        return;
+      }
+      reject(error ?? new Error("Could not open IndexedDB."));
     };
   });
 
