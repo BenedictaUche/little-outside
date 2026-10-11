@@ -21,8 +21,6 @@ const serwist = new Serwist({
   fallbacks: {
     entries: [
       {
-        // Serve the offline page for any navigation that misses the network
-        // and the precache (e.g. a route visited for the very first time).
         url: "/~offline",
         matcher({ request }) {
           return request.destination === "document";
