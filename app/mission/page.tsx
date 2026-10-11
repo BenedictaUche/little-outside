@@ -13,6 +13,8 @@ import { requestVocabulary } from "@/lib/ai";
 import type { VocabularySuggestion } from "@/lib/data/vocabulary";
 import { saveSession, saveWord, getDraft, saveDraft, clearDraft } from "@/lib/storage";
 import type { SessionDraft } from "@/lib/storage/sessions";
+import {MoveUpRight} from "lucide-react";
+
 
 type Stage = "mission" | "reflect" | "word";
 
@@ -131,7 +133,7 @@ export default function MissionPage() {
   if (isLoading) {
     return (
       <main className="min-h-screen">
-        <TopBar />
+        <TopBar trailing={{ href: "/", label: "← Back home" }} />
         <div className="flex h-[calc(100vh-64px)] items-center justify-center">
           <span className="animate-pulse text-plum/40">Preparing your adventure...</span>
         </div>
@@ -142,7 +144,7 @@ export default function MissionPage() {
   if (!preferences || !mission) {
     return (
       <main className="mx-auto w-[min(760px,calc(100%-40px))]">
-        <TopBar />
+        <TopBar trailing={{ href: "/", label: "← Back home" }} />
         <section className="md:py-12 py-8">
           <h1 className="font-display text-[clamp(35px,5vw,53px)] font-medium leading-[1.12] tracking-[-2px] text-plum">
             Let&apos;s plan a little adventure.
@@ -175,7 +177,7 @@ export default function MissionPage() {
           {stage === "mission" && (
             <>
               <Button block onClick={() => setStage("reflect")}>
-                I&apos;m ready <span aria-hidden="true">↗</span>
+                I&apos;m ready <span aria-hidden="true"> ↗</span>
               </Button>
 
               <div className="mt-5 flex gap-4 rounded-[17px] border border-[#d7c9e5] bg-paper/70 p-4">
@@ -211,7 +213,7 @@ export default function MissionPage() {
                 onClick={findMyWords}
               >
                 {loadingWord ? "Finding your words..." : "Find my words"}
-                {!loadingWord && <span aria-hidden="true">↗</span>}
+                {!loadingWord && <span aria-hidden="true"><MoveUpRight size={16} className=""/></span>}
               </Button>
               {wordError && (
                 <p role="alert" className="mt-3 text-[13px] leading-[1.6] text-[#a13c51]">

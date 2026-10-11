@@ -15,12 +15,8 @@ import type {
   SocialChoice,
   TimeChoice,
 } from "@/lib/types";
+import { MoveUpRight } from "lucide-react";
 
-/**
- * The home flow is client-side because preferences are chosen here and
- * handed to the mission page through sessionStorage (a tiny handoff, not
- * storage: anything durable is written to IndexedDB later in the flow).
- */
 const ACTIVITIES: {
   id: ActivityId;
   emoji: string;
@@ -205,7 +201,7 @@ export default function Home() {
               disabled={selectedActivities.length === 0}
               onClick={startAdventure}
             >
-              Let&apos;s go outside <span aria-hidden="true">↗</span>
+              Let&apos;s go outside <span aria-hidden="true"><MoveUpRight size={16} className=""/></span>
             </button>
           </div>
         </div>
