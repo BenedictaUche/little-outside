@@ -4,14 +4,13 @@ import { InjectManifest } from "@serwist/webpack-plugin";
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
-  turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
-      },
-    },
-  },
+  // Tailwind v4 is compiled via postcss.config.mjs (`@tailwindcss/postcss`),
+  // which both Turbopack (dev) and webpack (prod build) pick up. A
+  // `turbopack.rules` CSS loader is deliberately not used here: it only
+  // applies to Turbopack, so `next build --webpack` would emit unstyled CSS.
+  // Empty `turbopack` config silences Next 16's "webpack config but no
+  // turbopack config" guard; there are no Turbopack-specific options left.
+  turbopack: {},
   headers: async () => [
     {
       source: "/sw.js",
