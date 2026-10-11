@@ -36,5 +36,7 @@ export type StoredSession = {
   reflection: string;
   rewrite?: string;
   word?: string;
+  wordDefinition?: string;
+  wordPartOfSpeech?: string;
   wordSource?: ContentSource;
 };

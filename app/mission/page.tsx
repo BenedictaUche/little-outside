@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import Button from "@/components/Button";
 import MissionCard from "@/components/MissionCard";
@@ -11,81 +11,12 @@ import StickerPanel from "@/components/StickerPanel";
 import { generateMission, type Mission } from "@/lib/ai/missions";
 import { requestVocabulary } from "@/lib/ai";
 import type { VocabularySuggestion } from "@/lib/data/vocabulary";
-import { saveSession, saveWord } from "@/lib/storage";
-import type { SessionPreferences } from "@/lib/types";
-
-const HANDOFF_KEY = "little-outside-handoff";
+import { saveSession, saveWord, getDraft, saveDraft, clearDraft } from "@/lib/storage";
+import type { SessionDraft } from "@/lib/storage/sessions";
 
 type Stage = "mission" | "reflect" | "word";
 
-const NO_HANDOFF = Symbol("no-handoff");
-
-/**
- * What the home page hands over: the chosen preferences plus a seed
- * generated at click time (event handlers may be random; render must not).
- */
-type HandoffData = {
-  preferences: SessionPreferences;
-  seed: number;
-};
-
-type Handoff = HandoffData | typeof NO_HANDOFF | null;
-
-let cachedRaw: string | null | undefined;
-let cachedParsed: HandoffData | null;
-
-function parseHandoff(raw: string): HandoffData | null {
-  try {
-    const parsed = JSON.parse(raw) as
-      | (SessionPreferences & { seed?: number })
-      | { preferences: SessionPreferences; seed?: number };
-    const preferences = "preferences" in parsed ? parsed.preferences : parsed;
-    if (!Array.isArray(preferences.activities) || preferences.activities.length === 0) {
-      return null;
-    }
-    const seed =
-      typeof parsed.seed === "number" && Number.isFinite(parsed.seed)
-        ? parsed.seed
-        : 0;
-    return { preferences, seed };
-  } catch {
-    return null;
-  }
-}
-
-function readHandoffSnapshot(): Handoff {
-  let raw: string | null = null;
-  try {
-    raw = sessionStorage.getItem(HANDOFF_KEY);
-  } catch {
-    raw = null;
-  }
-
-  if (raw !== cachedRaw) {
-    cachedRaw = raw;
-    cachedParsed = raw ? parseHandoff(raw) : null;
-  }
-
-  return cachedParsed ?? NO_HANDOFF;
-}
-
-function getServerHandoffSnapshot(): Handoff {
-  return null;
-}
-
-function subscribeHandoff(): () => void {
-  return () => {};
-}
-
 export default function MissionPage() {
-  const handoff = useSyncExternalStore(
-    subscribeHandoff,
-    readHandoffSnapshot,
-    getServerHandoffSnapshot,
-  );
-  const preferences = handoff && handoff !== NO_HANDOFF ? handoff.preferences : null;
-  const seed = handoff && handoff !== NO_HANDOFF ? handoff.seed : 0;
-
   const [stage, setStage] = useState<Stage>("mission");
   const [reflection, setReflection] = useState("");
   const [rewrite, setRewrite] = useState("");
@@ -95,8 +26,32 @@ export default function MissionPage() {
   const [loadingWord, setLoadingWord] = useState(false);
   const [wordError, setWordError] = useState("");
   const [kept, setKept] = useState(false);
+  const [draft, setDraft] = useState<SessionDraft | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mission pick is derived purely from the handoff data — no randomness
+  useEffect(() => {
+    async function hydrate() {
+      try {
+        const currentDraft = await getDraft();
+        if (currentDraft) {
+          setDraft(currentDraft);
+          setStage(currentDraft.stage);
+          setReflection(currentDraft.reflection);
+          setRewrite(currentDraft.rewrite);
+        }
+      } catch (e) {
+        console.error("Failed to hydrate draft:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    hydrate();
+  }, []);
+
+  const preferences = draft?.handoff.preferences;
+  const seed = draft?.handoff.seed ?? 0;
+
+  // Mission pick is derived purely from the handoff data, no randomness
   // in render, so the prerender and the hydration pass agree.
   const mission = useMemo<Mission | null>(
     () => (preferences ? generateMission(preferences, seed) : null),
@@ -105,6 +60,20 @@ export default function MissionPage() {
 
   const missionTitle = mission?.title ?? "your mission";
   const missionIntensity = mission?.intensity ?? "a little walk";
+
+  async function handleReflectionChange(text: string) {
+    setReflection(text);
+    setTimeout(async () => {
+      await saveDraft({ reflection: text });
+    }, 800);
+  }
+
+  async function handleRewriteChange(text: string) {
+    setRewrite(text);
+    setTimeout(async () => {
+      await saveDraft({ rewrite: text });
+    }, 800);
+  }
 
   async function findMyWords() {
     if (!reflection.trim()) return;
@@ -117,6 +86,7 @@ export default function MissionPage() {
       const suggestion = await requestVocabulary(reflection);
       setSuggestion(suggestion);
       setStage("word");
+      await saveDraft({ stage: "word" });
     } catch (error) {
       setWordError(
         error instanceof Error
@@ -141,12 +111,15 @@ export default function MissionPage() {
         reflection: reflection.trim(),
         rewrite: rewrite.trim() || undefined,
         word: suggestion.word,
+        wordDefinition: suggestion.definition,
+        wordPartOfSpeech: suggestion.partOfSpeech,
         wordSource: suggestion.source,
       });
       await saveWord({
         suggestion,
         reflection: reflection.trim(),
       });
+      await clearDraft();
       void session;
     } catch (error) {
       console.warn("Could not save locally:", error);
@@ -155,10 +128,13 @@ export default function MissionPage() {
 
   const isOfflineSafe = suggestion?.source === "local";
 
-  if (handoff === null) {
+  if (isLoading) {
     return (
       <main className="min-h-screen">
         <TopBar />
+        <div className="flex h-[calc(100vh-64px)] items-center justify-center">
+          <span className="animate-pulse text-plum/40">Preparing your adventure...</span>
+        </div>
       </main>
     );
   }
@@ -226,7 +202,7 @@ export default function MissionPage() {
                 label="Tell me about something you saw, heard, or experienced."
                 placeholder="I noticed..."
                 value={reflection}
-                onChange={setReflection}
+                onChange={handleReflectionChange}
               />
               <Button
                 block
@@ -264,7 +240,7 @@ export default function MissionPage() {
                   label={suggestion.challenge}
                   placeholder="Try putting it in your own words..."
                   value={rewrite}
-                  onChange={setRewrite}
+                  onChange={handleRewriteChange}
                   rows={4}
                   hideHint
                 />

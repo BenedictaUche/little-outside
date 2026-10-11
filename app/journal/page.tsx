@@ -52,6 +52,15 @@ export default function JournalPage() {
           available, even when the internet isn&apos;t.
         </p>
 
+        {hasContent && (
+          <Link
+            href="/"
+            className="mt-4 inline-flex h-10 w-fit items-center justify-center gap-3.5 rounded-[100px_100px_100px_35px] border border-plum bg-plum px-5 text-xs font-bold text-cream no-underline transition hover:-translate-y-0.5 hover:bg-plum-light"
+          >
+            Start another adventure ↗
+          </Link>
+        )}
+
         {!ready && <p className="mt-8 text-xs text-muted">Opening your pages…</p>}
 
         {ready && !hasContent && (
@@ -96,10 +105,22 @@ export default function JournalPage() {
                     {session.preferences.budget}
                   </Sticker>
                   {session.word && (
-                    <p className="mt-3 text-[13px] leading-[1.8] text-[#76677a]">
-                      <span className="font-bold">A word for it:</span>{" "}
-                      {session.word}
-                    </p>
+                    <div className="mt-3">
+                      <p className="text-[13px] leading-[1.8] text-[#76677a]">
+                        <span className="font-bold">A word for it:</span>{" "}
+                        <span className="font-medium">{session.word}</span>
+                        {session.wordPartOfSpeech && (
+                          <>
+                            {" "}<span className="italic text-[#a26f89]">({session.wordPartOfSpeech})</span>
+                          </>
+                        )}
+                      </p>
+                      {session.wordDefinition && (
+                        <p className="mt-1 text-[12px] leading-[1.7] text-[#806d83]">
+                          {session.wordDefinition}
+                        </p>
+                      )}
+                    </div>
                   )}
                   <p className="mt-2 wrap-break-word border-l-2 border-lavender pl-3 text-[13px] leading-[1.8] text-[#65566a]">
                     {session.reflection}

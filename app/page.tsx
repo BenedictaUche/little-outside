@@ -7,6 +7,7 @@ import ActivityCard from "@/components/ActivityCard";
 import GardenScene from "@/components/GardenScene";
 import PreferenceRow from "@/components/PreferenceRow";
 import TopBar from "@/components/TopBar";
+import { saveDraft } from "@/lib/storage";
 import type {
   ActivityId,
   BudgetChoice,
@@ -82,7 +83,7 @@ export default function Home() {
     );
   }, []);
 
-  function startAdventure() {
+  async function startAdventure() {
     if (selectedActivities.length === 0) return;
 
     const preferences: SessionPreferences = {
@@ -92,8 +93,6 @@ export default function Home() {
       social,
     };
 
-    // Seed the mission pick here, in the click handler, so rendering the
-    // mission page later stays pure.
     const handoff = {
       preferences,
       seed: Math.floor(Math.random() * 100_000),
@@ -103,6 +102,7 @@ export default function Home() {
       "little-outside-handoff",
       JSON.stringify(handoff),
     );
+    await saveDraft({ handoff, stage: "mission" });
     router.push("/mission");
   }
 

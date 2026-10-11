@@ -16,6 +16,13 @@
 import { suggestVocabularyLocally, type VocabularySuggestion } from "../data/vocabulary";
 import { isReflectionValid } from "./vocabulary";
 
+/**
+ * Check if the browser is currently offline.
+ */
+function isOffline(): boolean {
+  return typeof navigator !== "undefined" && !navigator.onLine;
+}
+
 export async function requestVocabulary(
   reflection: string,
 ): Promise<VocabularySuggestion> {
@@ -42,9 +49,14 @@ export async function requestVocabulary(
         ? ((data as { error: string }).error)
         : "Couldn't find your words.";
     throw new Error(message);
-  } catch (error) {
+  } catch {
+    // If we're offline or the server is unreachable, fall back to local data
     const local = suggestVocabularyLocally(reflection);
     if (local) return local;
-    throw error instanceof Error ? error : new Error("Something went wrong.");
+    // If even local fallback fails (shouldn't happen with our curated dataset)
+    const message = isOffline()
+      ? "You're offline, but the local word library couldn't find a match. Your reflection is still saved."
+      : "Something went wrong. Your reflection will be saved, and you can try finding words again later.";
+    throw new Error(message);
   }
 }

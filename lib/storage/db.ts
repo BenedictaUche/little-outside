@@ -1,13 +1,9 @@
-/**
- * A tiny IndexedDB wrapper — just enough for Little Outside's two stores.
- * Deliberately dependency-free to keep the offline bundle small.
- */
-
 const DB_NAME = "little-outside";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export const SESSIONS_STORE = "sessions";
 export const WORDS_STORE = "words";
+export const DRAFT_STORE = "drafts";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -31,6 +27,9 @@ function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(WORDS_STORE)) {
         const store = db.createObjectStore(WORDS_STORE, { keyPath: "id" });
         store.createIndex("createdAt", "createdAt");
+      }
+      if (!db.objectStoreNames.contains(DRAFT_STORE)) {
+        db.createObjectStore(DRAFT_STORE, { keyPath: "id" });
       }
     };
 
@@ -89,7 +88,6 @@ export async function deleteOne(storeName: string, id: string): Promise<void> {
   });
 }
 
-/** Generate a client-side id for new records (no server round-trip needed). */
 export function newId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random()
     .toString(36)

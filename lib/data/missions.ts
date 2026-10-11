@@ -32,7 +32,6 @@ const BUDGET_ORDER: BudgetChoice[] = ["₦0", "₦1k", "₦5k+"];
 const TIME_ORDER: TimeChoice[] = ["15 min", "30 min", "1 hour", "2+ hours"];
 
 
-
 type MissionConstraints = {
   /** Maximum budget the mission may require, e.g. "₦1k" = costs at most ₦1k. */
   maxBudget: BudgetChoice;
@@ -45,9 +44,8 @@ type MissionConstraints = {
 export type LocalMission = MissionRecord & MissionConstraints;
 
 /**
- * The local mission library. Deliberately small but covering the preference
- * matrix: every activity has missions that respect budget, time and social
- * needs.
+ * The local mission library. Expanded to cover more specific, actionable
+ * experiences that respect all preference combinations.
  */
 const MISSIONS: LocalMission[] = [
   // ── Notice things ──────────────────────────────────────────────
@@ -127,6 +125,63 @@ const MISSIONS: LocalMission[] = [
     minTime: "1 hour",
     social: "Just me",
   },
+  {
+    id: "notice-unfamiliar-street",
+    activity: "notice",
+    intensity: "a little observation",
+    emoji: "🗺️",
+    color: "peach",
+    title: "The Road Less Taken",
+    intro: "Walk to the nearest street you don't normally take.",
+    instructions: [
+      "Walk to the closest street you rarely or never use.",
+      "Find three things you have passed before but never really noticed.",
+      "Stop and look at each one for at least thirty seconds.",
+      "Notice what makes it different from what you usually see.",
+    ],
+    reflectionPrompt: "What did you discover on the road less traveled?",
+    maxBudget: "₦0",
+    minTime: "30 min",
+    social: "Just me",
+  },
+  {
+    id: "notice-weathered-object",
+    activity: "notice",
+    intensity: "a little observation",
+    emoji: "🪵",
+    color: "butter",
+    title: "Time's Signature",
+    intro: "Find something weathered and see what time has done to it.",
+    instructions: [
+      "Find something weathered: a wall, sign, gate, tree, chair, door, or fence.",
+      "Look closely at what time and use have done to it.",
+      "Notice the cracks, the faded paint, the worn edges, the way it leans.",
+      "Imagine what it looked like when it was new.",
+    ],
+    reflectionPrompt: "What did time and use do to what you found?",
+    maxBudget: "₦0",
+    minTime: "15 min",
+    social: "Just me",
+  },
+  {
+    id: "notice-sit-and-listen",
+    activity: "notice",
+    intensity: "a quiet pause",
+    emoji: "🎧",
+    color: "lavender",
+    title: "Five Sounds, One Place",
+    intro: "Sit somewhere outside for ten minutes and listen.",
+    instructions: [
+      "Find a place to sit outside where you can hear the world.",
+      "Don't use your phone. Close your eyes if you want.",
+      "Notice five different sounds.",
+      "Identify which one you usually ignore.",
+    ],
+    reflectionPrompt: "What five sounds did you hear, and which do you usually ignore?",
+    maxBudget: "₦0",
+    minTime: "15 min",
+    social: "Just me",
+  },
 
   // ── Find better words ──────────────────────────────────────────
   {
@@ -185,6 +240,25 @@ const MISSIONS: LocalMission[] = [
     maxBudget: "₦1k",
     minTime: "30 min",
     social: "A little interaction",
+  },
+  {
+    id: "words-single-object",
+    activity: "vocabulary",
+    intensity: "a little noticing & words",
+    emoji: "🔍",
+    color: "lavender",
+    title: "One Thing, Many Words",
+    intro: "Pick one object and describe it in detail.",
+    instructions: [
+      "Find a single object outside that interests you: a gate, a lamp, a tree, a sign.",
+      "Look at it from different angles.",
+      "Notice its material, its color, its condition, how it's attached or standing.",
+      "Describe it to yourself using as many precise words as you can.",
+    ],
+    reflectionPrompt: "What object did you focus on, and how would you describe it?",
+    maxBudget: "₦0",
+    minTime: "30 min",
+    social: "Just me",
   },
 
   // ── Talk to someone ────────────────────────────────────────────
@@ -264,6 +338,44 @@ const MISSIONS: LocalMission[] = [
     minTime: "1 hour",
     social: "I'm feeling social",
   },
+  {
+    id: "talk-share-observation",
+    activity: "talk",
+    intensity: "a tiny interaction",
+    emoji: "💬",
+    color: "peach",
+    title: "Tell Someone What You Noticed",
+    intro: "Sharing makes noticing stick.",
+    instructions: [
+      "Find someone you know, even just a little.",
+      "Tell them one small thing you noticed recently that they might not have seen.",
+      "Describe it in detail — color, shape, sound, whatever made it interesting.",
+      "Notice how they react.",
+    ],
+    reflectionPrompt: "What did you tell them about, and how did they respond?",
+    maxBudget: "₦0",
+    minTime: "15 min",
+    social: "A little interaction",
+  },
+  {
+    id: "talk-ask-direction",
+    activity: "talk",
+    intensity: "a tiny interaction",
+    emoji: "❓",
+    color: "lavender",
+    title: "Ask for Directions You Don't Need",
+    intro: "A small interaction can start with a simple question.",
+    instructions: [
+      "Find someone outside who looks approachable.",
+      "Ask them for directions to a place you already know how to get to.",
+      "Thank them and walk a different way than they suggested.",
+      "Notice what the brief interaction felt like.",
+    ],
+    reflectionPrompt: "Who did you ask, and what was the interaction like?",
+    maxBudget: "₦0",
+    minTime: "15 min",
+    social: "A little interaction",
+  },
 
   // ── Clear your head ────────────────────────────────────────────
   {
@@ -340,6 +452,44 @@ const MISSIONS: LocalMission[] = [
     reflectionPrompt: "What changed between the sky and you from start to finish?",
     maxBudget: "₦0",
     minTime: "1 hour",
+    social: "Just me",
+  },
+  {
+    id: "clear-buy-cheap-snack",
+    activity: "clear-head",
+    intensity: "a quiet pause",
+    emoji: "🍪",
+    color: "butter",
+    title: "A Treat and a Thought",
+    intro: "Buy the cheapest snack and sit somewhere outside.",
+    instructions: [
+      "Buy the cheapest snack or drink you can find nearby.",
+      "Sit somewhere outside while you eat or drink it.",
+      "Pay attention to the surroundings rather than your phone.",
+      "Let your mind wander where it wants to go.",
+    ],
+    reflectionPrompt: "What did you notice while you were eating?",
+    maxBudget: "₦1k",
+    minTime: "30 min",
+    social: "Just me",
+  },
+  {
+    id: "clear-follow-shadow",
+    activity: "clear-head",
+    intensity: "a quiet pause",
+    emoji: "👤",
+    color: "rose",
+    title: "Shadow Walk",
+    intro: "Let your shadow lead the way.",
+    instructions: [
+      "Find a sunny spot and start walking.",
+      "Notice how your shadow moves ahead of you, beside you, behind you.",
+      "Try to step on your shadow, then step where it will be.",
+      "When you feel present, stop and notice what's around you.",
+    ],
+    reflectionPrompt: "What did you notice when you were present with your shadow?",
+    maxBudget: "₦0",
+    minTime: "30 min",
     social: "Just me",
   },
 ];
